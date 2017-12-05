@@ -7,6 +7,7 @@
 #include <iostream>
 #include<stdio.h>
 #include<winsock2.h>
+#include <ws2tcpip.h>
 
 #pragma comment(lib,"ws2_32.lib") //Winsock Library
 using namespace std;
@@ -25,7 +26,7 @@ void validerAdresse(string adresse)
 	{
 		false;
 	}
-	
+
 }
 int RunSocket(string adresse)
 {
@@ -66,8 +67,7 @@ int RunSocket(string adresse)
 
 	return 0;
 }
-
-bool AdresseVersIP(char* adresse)
+string AdresseVersIP(const char* adresse)
 {
 	WSADATA wsaData;
 	int iResult;
@@ -75,7 +75,7 @@ bool AdresseVersIP(char* adresse)
 	DWORD dwError;
 
 	struct hostent *remoteHost;
-	char *host_name;
+	const char *host_name;
 	struct in_addr addr;
 
 	// Initialize Winsock
@@ -83,7 +83,7 @@ bool AdresseVersIP(char* adresse)
 	if (iResult != 0)
 	{
 		printf("WSAStartup failed: %d\n", iResult);
-		return 1;
+		return "";
 	}
 
 	host_name = adresse;
@@ -91,27 +91,49 @@ bool AdresseVersIP(char* adresse)
 	remoteHost = gethostbyname(host_name);
 	addr.s_addr = *(u_long *)remoteHost->h_addr_list[0];
 	printf("First IP Address: %s\n", inet_ntoa(addr));
-	return true;
+	return inet_ntoa(addr);
 }
-
+std::wstring s2ws(const std::string& s)
+{
+	int len;
+	int slength = (int)s.length() + 1;
+	len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, 0, 0);
+	wchar_t* buf = new wchar_t[len];
+	MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, buf, len);
+	std::wstring r(buf);
+	delete[] buf;
+	return r;
+}
 int main()
 {
 	std::thread::id mainThreadId = std::this_thread::get_id();
-	//while (true)
+	bool continuer = true;
+	while (continuer)
 	{
 		std::cout << "Voulez vous vous connecter à un site web? [y/n]" << endl;
 		char value;
 		cin >> value;
 		if (value == 'y')
 		{
-			cout << "Veuillez entrer une adresse de connexion valide sous format ipv4" << endl;
+			cout << "Veuillez entrer une adresse web" << endl;
 			string adresse;
 			cin >> adresse;
+			string adresseIP;
+			adresseIP = AdresseVersIP(adresse.c_str());
 			thread first(validerAdresse, adresse);
 			first.join();
-			RunSocket(adresse);
-			char *cAdresse = &adresse[0u];
-			AdresseVersIP(cAdresse);
+			if (RunSocket(adresseIP) == 0)
+			{
+				char *cAdresse = &adresse[0u];
+				AdresseVersIP(cAdresse);
+				std::wstring wString = s2ws(adresse);
+				LPCWSTR Adresse = wString.c_str();
+				ShellExecute(0, 0, Adresse, 0, 0, SW_SHOW);
+			}
+		}
+		else
+		{
+			continuer = false;
 		}
 	}
 	return 0;
